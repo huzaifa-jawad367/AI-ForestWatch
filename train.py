@@ -15,6 +15,7 @@ import model.model as module_arch
 from parse_config import ConfigParser
 from trainer import Trainer
 from utils import prepare_device
+from transformers import SegformerForSemanticSegmentation, SegformerConfig
 
 
 # fix random seeds for reproducibility
@@ -33,7 +34,18 @@ def main(config):
     test_data_loader = config.init_obj('train_data_loader', module_data, mode='test')
 
     # build model architecture, then print to console
-    model = config.init_obj('arch', module_arch)
+    # model = config.init_obj('arch', module_arch)
+    # logger.info(model)
+
+    # --- Using HuggingFace Transformers Segformer B5 ---
+    segformer_config = SegformerConfig.from_pretrained(
+        "nvidia/segformer-b5-finetuned-ade-640-640",
+        num_channels=18, # 18 input channels
+        num_labels=2,    # 2 output classes: Forest, Non-forest
+        label2id={"Forest": 1, "Non-forest": 0},
+        id2label={1: "Forest", 0: "Non-forest"}
+    )
+    model = SegformerForSemanticSegmentation(segformer_config)
     logger.info(model)
 
     # prepare for (multi-device) GPU training
