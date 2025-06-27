@@ -39,3 +39,7 @@ def focal_loss2d(output, target, weights=None):
 
 if __name__ == '__main__':
     check_focal_loss2d()
+
+def cross_entropy(output, target):
+    target = target.long()  # Ensure target is of type Long
+    return F.cross_entropy(output, target)
