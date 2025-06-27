@@ -85,11 +85,14 @@ class Trainer(BaseTrainer):
             val_log = self._valid_epoch(self.valid_data_loader)
             log.update(**{'val_'+k: v for k, v in val_log.items()})
         if self.do_test and epoch == self.config['trainer']['epochs']:
-            best_path = str(self.checkpoint_dir / 'model_best.pth')
-            self._resume_checkpoint(best_path)
-            self.logger.info("Testing current best: model_best.pth ...")
-            test_log = self._valid_epoch(self.test_data_loader)
-            log.update(**{'test_'+k: v for k, v in test_log.items()})
+            try:
+                best_path = str(self.checkpoint_dir / 'model_best.pth')
+                self._resume_checkpoint(best_path)
+                self.logger.info("Testing current best: model_best.pth ...")
+                test_log = self._valid_epoch(self.test_data_loader)
+                log.update(**{'test_'+k: v for k, v in test_log.items()})
+            except FileNotFoundError:
+                self.logger.info("No model_best.pth found, skipping testing ...")
 
         if self.lr_scheduler is not None:
             self.lr_scheduler.step()
