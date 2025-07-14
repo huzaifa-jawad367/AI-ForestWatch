@@ -56,17 +56,31 @@ class Trainer(BaseTrainer):
             data, target = data.to(self.device), target.to(self.device)
 
             self.optimizer.zero_grad()
-            out_x, softmaxed = self.model(data)
-            pred = torch.argmax(softmaxed, dim=1)
+            outputs = self.model(data)  # [(out1, softmax1), (out2, softmax2), (out3, softmax3)]
+            outs = [o[0] for o in outputs]  # raw outputs for loss
+            softmaxed = [o[1] for o in outputs]  # softmaxed outputs for prediction/metrics
+            # Use the highest resolution output for prediction
+            pred = torch.argmax(softmaxed[0], dim=1)
             loss_target = target.clone()
             loss_target[loss_target != 0] -= 1
             loss_target = loss_target.squeeze(1)
-            loss = self.criterion(softmaxed, loss_target)
+            # Compute individual losses for each output for logging
+            individual_losses = []
+            for i, out in enumerate(outs):
+                t = loss_target
+                if out.shape[2:] != t.shape[1:]:
+                    t = torch.nn.functional.interpolate(t.unsqueeze(1).float(), size=out.shape[2:], mode='nearest').long().squeeze(1)
+                l = self.criterion.ce(out, t) if hasattr(self.criterion, 'ce') else self.criterion(out, t)
+                individual_losses.append(l.item() if hasattr(l, 'item') else float(l))
+            loss = self.criterion(outs, loss_target)
             loss.backward()
             clip_grad_norm_(self.model.parameters(), 0.05)
             self.optimizer.step()
 
             self.train_metrics.update('loss', loss.item())
+            # Log individual losses for out1, out2, out3
+            for i, l in enumerate(individual_losses):
+                self.train_metrics.update(f'loss_out{i+1}', l)
             for met in self.metric_ftns:
                 self.train_metrics.update(
                     met.__name__, met(softmaxed, loss_target))

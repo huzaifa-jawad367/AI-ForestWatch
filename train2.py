@@ -15,7 +15,7 @@ import model.model as module_arch
 from parse_config import ConfigParser
 from trainer import Trainer
 from utils import prepare_device
-
+from model.Segforest.Segforest import Segforest
 
 # fix random seeds for reproducibility
 SEED = 123
@@ -33,7 +33,8 @@ def main(config):
     test_data_loader = config.init_obj('train_data_loader', module_data, mode='test')
 
     # build model architecture, then print to console
-    model = config.init_obj('arch', module_arch)
+    # model = config.init_obj('arch', module_arch)
+    model = Segforest()
     logger.info(model)
 
     # prepare for (multi-device) GPU training

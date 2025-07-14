@@ -64,5 +64,8 @@ class MultiScaleMultiDecoder(nn.Module):
         out1 = self.mff1_x_conv3x3(mff1_x_cat)
         out1 = F.relu(out1, inplace=True)
         out1 = self.mff1_x_out1_conv1x1(out1)
-        return [out1, out2, out3]
+        if self.training:
+            return [out1, out2, out3]
+        else:
+            return [out1]
 

@@ -36,4 +36,9 @@ class Segforest(nn.Module):
         encoder_outputs = self.encoder(x)  # [TB1, TB2, TB3, TB4]
         mff_outputs = self.mff_blocks(encoder_outputs)  # [MFF_1, MFF_2, MFF_3]
         decoder_outputs = self.decoder(mff_outputs, encoder_outputs)  # [out1, out2, out3]
-        return decoder_outputs
+        # Return both outputs and their softmaxed versions
+        output_pairs = []
+        for out in decoder_outputs:
+            softmaxed = torch.nn.functional.softmax(out, dim=1)
+            output_pairs.append((out, softmaxed))
+        return output_pairs
