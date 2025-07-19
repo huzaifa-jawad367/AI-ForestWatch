@@ -72,3 +72,38 @@ class MetricTracker:
 
     def result(self):
         return dict(self._data.average)
+
+class MultiLossMetricTracker:
+    def __init__(self, num_losses=3, writer=None):
+        self.writer = writer
+        self.num_losses = num_losses
+        self.loss_keys = [f'loss_out{i+1}' for i in range(num_losses)]
+        self.total_key = 'loss'
+        self._data = pd.DataFrame(index=[self.total_key] + self.loss_keys, columns=['total', 'counts', 'average'])
+        self.reset()
+
+    def reset(self):
+        for col in self._data.columns:
+            self._data[col].values[:] = 0
+
+    def update(self, losses, total_loss, n=1):
+        # losses: list/tuple of individual loss values
+        # total_loss: scalar total loss value
+        if self.writer is not None:
+            self.writer.add_scalar(self.total_key, total_loss)
+            for i, l in enumerate(losses):
+                self.writer.add_scalar(self.loss_keys[i], l)
+        self._data.total[self.total_key] += total_loss * n
+        self._data.counts[self.total_key] += n
+        self._data.average[self.total_key] = self._data.total[self.total_key] / self._data.counts[self.total_key]
+        for i, l in enumerate(losses):
+            key = self.loss_keys[i]
+            self._data.total[key] += l * n
+            self._data.counts[key] += n
+            self._data.average[key] = self._data.total[key] / self._data.counts[key]
+
+    def avg(self, key):
+        return self._data.average[key]
+
+    def result(self):
+        return dict(self._data.average)

@@ -6,9 +6,7 @@ from functools import partial
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 from timm.models.registry import register_model
 from timm.models.vision_transformer import _cfg
-from mmseg.models.builder import BACKBONES
-from mmseg.utils import get_root_logger
-from mmcv.runner import load_checkpoint
+# from mmcv.runner import load_checkpoint
 import math
 
 class MixTransformerFeatureConcat(nn.Module):
@@ -50,17 +48,21 @@ class MFFBlocks(nn.Module):
         self.feature_concat = MixTransformerFeatureConcat()
         # Create 3 MFF blocks, one for each k value
         self.mff_blocks = nn.ModuleList([
-            MFFBlock(in_channels_list[i], out_channels) for i in range(3)
+            MFFBlock(in_channels_list[i], out_channels[i]) for i in range(3)
         ])
 
     def forward(self, outs):
         # outs: list of 4 tensors from MixVisionTransformer
+        print("--------------------------------")
+        print("MFFBlocks forward")
+        print("--------------------------------")
         mff_outputs = []
         for k in range(1, 4):  # k = 1, 2, 3
             # Concatenate features for this k value
             concatenated = self.feature_concat(outs, k)
             # Pass through the corresponding MFF block
             mff_output = self.mff_blocks[k-1](concatenated)
+            print(f"Shape of MFF block output {k}: {mff_output.shape}")
             mff_outputs.append(mff_output)
         return mff_outputs
 

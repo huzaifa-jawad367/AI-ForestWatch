@@ -9,6 +9,7 @@ import torch
 from base import BaseTrainer
 from torch.nn.utils import clip_grad_norm_
 from utils import MetricTracker, inf_loop
+from utils import MultiLossMetricTracker
 from sklearn.metrics import classification_report
 
 
@@ -38,8 +39,10 @@ class Trainer(BaseTrainer):
         self.lr_scheduler = lr_scheduler
         self.log_step = int(np.sqrt(data_loader.batch_size))
 
-        self.train_metrics = MetricTracker(
-            'loss', *[m.__name__ for m in self.metric_ftns])
+        # Replace train_metrics with MultiLossMetricTracker
+        self.train_metrics = MultiLossMetricTracker(num_losses=3)
+        # self.train_metrics = MetricTracker(
+        #     'loss', *[m.__name__ for m in self.metric_ftns])
         self.valid_metrics = MetricTracker(
             'loss', *[m.__name__ for m in self.metric_ftns])
 
@@ -50,40 +53,59 @@ class Trainer(BaseTrainer):
         :param epoch: Integer, current training epoch.
         :return: A log that contains average loss and metric in this epoch.
         """
+        
         self.model.train()
         self.train_metrics.reset()
         for batch_idx, (data, target) in enumerate(self.data_loader):
             data, target = data.to(self.device), target.to(self.device)
 
             self.optimizer.zero_grad()
-            outputs = self.model(data)  # [(out1, softmax1), (out2, softmax2), (out3, softmax3)]
-            outs = [o[0] for o in outputs]  # raw outputs for loss
-            softmaxed = [o[1] for o in outputs]  # softmaxed outputs for prediction/metrics
+            outputs = self.model(data)  # [out1, out2, out3] (upsampled)
+            outs = outputs  # raw outputs for loss
+            softmaxed = [torch.nn.functional.softmax(o, dim=1) for o in outputs]  # softmaxed outputs for prediction/metrics
+            print("--------------------------------")
+            print("Train Epoch")
+            print("--------------------------------")
             # Use the highest resolution output for prediction
-            pred = torch.argmax(softmaxed[0], dim=1)
+            preds = [torch.argmax(sm, dim=1) for sm in softmaxed]
             loss_target = target.clone()
             loss_target[loss_target != 0] -= 1
             loss_target = loss_target.squeeze(1)
-            # Compute individual losses for each output for logging
+            # Downsample loss_target for each prediction scale
+            loss_targets = [
+                loss_target,
+                torch.nn.functional.interpolate(loss_target.unsqueeze(1).float(), scale_factor=0.25, mode='nearest').long().squeeze(1),
+                torch.nn.functional.interpolate(loss_target.unsqueeze(1).float(), scale_factor=0.125, mode='nearest').long().squeeze(1)
+            ]
+            # Compute individual losses for each prediction/target for logging
             individual_losses = []
-            for i, out in enumerate(outs):
-                t = loss_target
+            ce_loss = torch.nn.CrossEntropyLoss()
+            for i, (out, t) in enumerate(zip(outs, loss_targets)):
+                # If target has shape (B, 1, H, W), squeeze to (B, H, W)
+                if t.dim() == 4 and t.size(1) == 1:
+                    t = t.squeeze(1)
+                # Resize target if needed (shouldn't be needed if targets are preprocessed, but keep for safety)
                 if out.shape[2:] != t.shape[1:]:
                     t = torch.nn.functional.interpolate(t.unsqueeze(1).float(), size=out.shape[2:], mode='nearest').long().squeeze(1)
-                l = self.criterion.ce(out, t) if hasattr(self.criterion, 'ce') else self.criterion(out, t)
+                l = ce_loss(out, t)
                 individual_losses.append(l.item() if hasattr(l, 'item') else float(l))
-            loss = self.criterion(outs, loss_target)
+            # Use the new criterion interface
+            loss = self.criterion(outs, loss_targets)
             loss.backward()
             clip_grad_norm_(self.model.parameters(), 0.05)
             self.optimizer.step()
 
-            self.train_metrics.update('loss', loss.item())
-            # Log individual losses for out1, out2, out3
-            for i, l in enumerate(individual_losses):
-                self.train_metrics.update(f'loss_out{i+1}', l)
+            print(f"type loss_target: {type(loss_target)}")
+            print(f"shape of loss_target: {loss_target.shape}")
+            # Update MultiLossMetricTracker for training
+            self.train_metrics.update(individual_losses, loss.item())
             for met in self.metric_ftns:
+                print(f"Type of accuracy: {type(met(softmaxed, loss_target))}")
+                print(met(softmaxed, loss_target))
                 self.train_metrics.update(
                     met.__name__, met(softmaxed, loss_target))
+            print("---SUCCESSFUL---")
+            import sys; sys.exit(0)
 
             if batch_idx % self.log_step == 0:
                 self.logger.debug('Train Epoch: {} {} Loss: {:.6f}'.format(

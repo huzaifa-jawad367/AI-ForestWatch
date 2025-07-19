@@ -11,11 +11,21 @@ from functools import partial
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 from timm.models.registry import register_model
 from timm.models.vision_transformer import _cfg
-from mmseg.models.builder import BACKBONES
-from mmseg.utils import get_root_logger
-from mmcv.runner import load_checkpoint
-import math
+# Remove mmcv imports
+# from mmcv.utils import Registry, build_from_cfg
+# from mmcv.runner import load_checkpoint
+# from mmseg.models.builder import BACKBONES
+# from mmseg.utils import get_root_logger
 
+import math
+import warnings
+
+# Simple registry for backbones
+BACKBONES = {}
+
+def register_backbone(cls):
+    BACKBONES[cls.__name__] = cls
+    return cls
 
 class Mlp(nn.Module):
     def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.):
@@ -275,8 +285,12 @@ class MixVisionTransformer(nn.Module):
 
     def init_weights(self, pretrained=None):
         if isinstance(pretrained, str):
-            logger = get_root_logger()
-            load_checkpoint(self, pretrained, map_location='cpu', strict=False, logger=logger)
+            # Simple torch.load-based checkpoint loading
+            checkpoint = torch.load(pretrained, map_location='cpu')
+            if 'state_dict' in checkpoint:
+                self.load_state_dict(checkpoint['state_dict'], strict=False)
+            else:
+                self.load_state_dict(checkpoint, strict=False)
 
     def reset_drop_path(self, drop_path_rate):
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(self.depths))]
@@ -311,6 +325,9 @@ class MixVisionTransformer(nn.Module):
         self.head = nn.Linear(self.embed_dim, num_classes) if num_classes > 0 else nn.Identity()
 
     def forward_features(self, x):
+        print("--------------------------------")
+        print("MixVisionTransformer forward_features")
+        print("--------------------------------")
         B = x.shape[0]
         outs = []
 
@@ -320,6 +337,7 @@ class MixVisionTransformer(nn.Module):
             x = blk(x, H, W)
         x = self.norm1(x)
         x = x.reshape(B, H, W, -1).permute(0, 3, 1, 2).contiguous()
+        print(f"Shape after stage 1: {x.shape}")
         outs.append(x)
 
         # stage 2
@@ -328,6 +346,7 @@ class MixVisionTransformer(nn.Module):
             x = blk(x, H, W)
         x = self.norm2(x)
         x = x.reshape(B, H, W, -1).permute(0, 3, 1, 2).contiguous()
+        print(f"Shape after stage 2: {x.shape}")
         outs.append(x)
 
         # stage 3
@@ -336,6 +355,7 @@ class MixVisionTransformer(nn.Module):
             x = blk(x, H, W)
         x = self.norm3(x)
         x = x.reshape(B, H, W, -1).permute(0, 3, 1, 2).contiguous()
+        print(f"Shape after stage 3: {x.shape}")
         outs.append(x)
 
         # stage 4
@@ -344,6 +364,7 @@ class MixVisionTransformer(nn.Module):
             x = blk(x, H, W)
         x = self.norm4(x)
         x = x.reshape(B, H, W, -1).permute(0, 3, 1, 2).contiguous()
+        print(f"Shape after stage 4: {x.shape}")
         outs.append(x)
 
         return outs
@@ -370,7 +391,7 @@ class DWConv(nn.Module):
 
 
 
-@BACKBONES.register_module()
+@register_backbone
 class mit_b0(MixVisionTransformer):
     def __init__(self, **kwargs):
         super(mit_b0, self).__init__(
@@ -379,7 +400,7 @@ class mit_b0(MixVisionTransformer):
             drop_rate=0.0, drop_path_rate=0.1)
 
 
-@BACKBONES.register_module()
+@register_backbone
 class mit_b1(MixVisionTransformer):
     def __init__(self, **kwargs):
         super(mit_b1, self).__init__(
@@ -388,7 +409,7 @@ class mit_b1(MixVisionTransformer):
             drop_rate=0.0, drop_path_rate=0.1)
 
 
-@BACKBONES.register_module()
+@register_backbone
 class mit_b2(MixVisionTransformer):
     def __init__(self, **kwargs):
         super(mit_b2, self).__init__(
@@ -397,7 +418,7 @@ class mit_b2(MixVisionTransformer):
             drop_rate=0.0, drop_path_rate=0.1)
 
 
-@BACKBONES.register_module()
+@register_backbone
 class mit_b3(MixVisionTransformer):
     def __init__(self, **kwargs):
         super(mit_b3, self).__init__(
@@ -406,7 +427,7 @@ class mit_b3(MixVisionTransformer):
             drop_rate=0.0, drop_path_rate=0.1)
 
 
-@BACKBONES.register_module()
+@register_backbone
 class mit_b4(MixVisionTransformer):
     def __init__(self, **kwargs):
         super(mit_b4, self).__init__(
@@ -415,7 +436,7 @@ class mit_b4(MixVisionTransformer):
             drop_rate=0.0, drop_path_rate=0.1)
 
 
-@BACKBONES.register_module()
+@register_backbone
 class mit_b5(MixVisionTransformer):
     def __init__(self, **kwargs):
         super(mit_b5, self).__init__(

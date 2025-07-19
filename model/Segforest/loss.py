@@ -8,18 +8,17 @@ class MultiScaleWeightedCELoss(nn.Module):
         self.weights = weights
         self.ce = nn.CrossEntropyLoss()
 
-    def forward(self, outputs, target):
-        # outputs: list of [out1, out2, out3], each (B, C, H, W)
-        # target: (B, H, W) or (B, 1, H, W)
+    def forward(self, preds, targets):
+        # preds: list of [pred1, pred2, pred3], each (B, H, W) or (B, 1, H, W)
+        # targets: list of [target1, target2, target3], each (B, H, W)
         total_loss = 0.0
-        for i, out in enumerate(outputs):
+        for i, (pred, t) in enumerate(zip(preds, targets)):
             # If target has shape (B, 1, H, W), squeeze to (B, H, W)
-            t = target
             if t.dim() == 4 and t.size(1) == 1:
                 t = t.squeeze(1)
-            # Resize target if needed
-            if out.shape[2:] != t.shape[1:]:
-                t = F.interpolate(t.unsqueeze(1).float(), size=out.shape[2:], mode='nearest').long().squeeze(1)
-            loss = self.ce(out, t)
+            # Resize target if needed (shouldn't be needed if targets are preprocessed, but keep for safety)
+            if pred.shape[2:] != t.shape[1:]:
+                t = F.interpolate(t.unsqueeze(1).float(), size=pred.shape[2:], mode='nearest').long().squeeze(1)
+            loss = self.ce(pred, t)
             total_loss += self.weights[i] * loss
         return total_loss

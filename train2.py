@@ -9,13 +9,14 @@ import collections
 import torch
 import numpy as np
 import data_loader.data_loaders as module_data
-import model.loss as module_loss
+# import model.loss as module_loss
 import model.metric as module_metric
 import model.model as module_arch
 from parse_config import ConfigParser
 from trainer import Trainer
 from utils import prepare_device
 from model.Segforest.Segforest import Segforest
+from model.Segforest.loss import MultiScaleWeightedCELoss
 
 # fix random seeds for reproducibility
 SEED = 123
@@ -34,7 +35,9 @@ def main(config):
 
     # build model architecture, then print to console
     # model = config.init_obj('arch', module_arch)
+    print("Ïnstantiating Segforest Model ...")
     model = Segforest()
+    print("Ïnstantiated Segforest")
     logger.info(model)
 
     # prepare for (multi-device) GPU training
@@ -44,7 +47,8 @@ def main(config):
         model = torch.nn.DataParallel(model, device_ids=device_ids)
 
     # get function handles of loss and metrics
-    criterion = getattr(module_loss, config['loss'])
+    # criterion = getattr(module_loss, config['loss'])
+    criterion = MultiScaleWeightedCELoss()
     metrics = [getattr(module_metric, met) for met in config['metrics']]
 
     # build optimizer, learning rate scheduler. delete every lines containing lr_scheduler for disabling scheduler
