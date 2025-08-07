@@ -325,9 +325,9 @@ class MixVisionTransformer(nn.Module):
         self.head = nn.Linear(self.embed_dim, num_classes) if num_classes > 0 else nn.Identity()
 
     def forward_features(self, x):
-        print("--------------------------------")
-        print("MixVisionTransformer forward_features")
-        print("--------------------------------")
+        # print("--------------------------------")
+        # print("MixVisionTransformer forward_features")
+        # print("--------------------------------")
         B = x.shape[0]
         outs = []
 
@@ -337,7 +337,7 @@ class MixVisionTransformer(nn.Module):
             x = blk(x, H, W)
         x = self.norm1(x)
         x = x.reshape(B, H, W, -1).permute(0, 3, 1, 2).contiguous()
-        print(f"Shape after stage 1: {x.shape}")
+        # print(f"Shape after stage 1: {x.shape}")
         outs.append(x)
 
         # stage 2
@@ -346,7 +346,7 @@ class MixVisionTransformer(nn.Module):
             x = blk(x, H, W)
         x = self.norm2(x)
         x = x.reshape(B, H, W, -1).permute(0, 3, 1, 2).contiguous()
-        print(f"Shape after stage 2: {x.shape}")
+        # print(f"Shape after stage 2: {x.shape}")
         outs.append(x)
 
         # stage 3
@@ -355,7 +355,7 @@ class MixVisionTransformer(nn.Module):
             x = blk(x, H, W)
         x = self.norm3(x)
         x = x.reshape(B, H, W, -1).permute(0, 3, 1, 2).contiguous()
-        print(f"Shape after stage 3: {x.shape}")
+        # print(f"Shape after stage 3: {x.shape}")
         outs.append(x)
 
         # stage 4
@@ -364,7 +364,7 @@ class MixVisionTransformer(nn.Module):
             x = blk(x, H, W)
         x = self.norm4(x)
         x = x.reshape(B, H, W, -1).permute(0, 3, 1, 2).contiguous()
-        print(f"Shape after stage 4: {x.shape}")
+        # print(f"Shape after stage 4: {x.shape}")
         outs.append(x)
 
         return outs
@@ -397,7 +397,7 @@ class mit_b0(MixVisionTransformer):
         super(mit_b0, self).__init__(
             patch_size=4, embed_dims=[32, 64, 160, 256], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
             qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[2, 2, 2, 2], sr_ratios=[8, 4, 2, 1],
-            drop_rate=0.0, drop_path_rate=0.1)
+            drop_rate=0.0, drop_path_rate=0.1, **kwargs)
 
 
 @register_backbone
@@ -406,7 +406,7 @@ class mit_b1(MixVisionTransformer):
         super(mit_b1, self).__init__(
             patch_size=4, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
             qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[2, 2, 2, 2], sr_ratios=[8, 4, 2, 1],
-            drop_rate=0.0, drop_path_rate=0.1)
+            drop_rate=0.0, drop_path_rate=0.1, **kwargs)
 
 
 @register_backbone
@@ -415,7 +415,7 @@ class mit_b2(MixVisionTransformer):
         super(mit_b2, self).__init__(
             patch_size=4, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
             qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[3, 4, 6, 3], sr_ratios=[8, 4, 2, 1],
-            drop_rate=0.0, drop_path_rate=0.1)
+            drop_rate=0.0, drop_path_rate=0.1, **kwargs)
 
 
 @register_backbone
@@ -424,16 +424,28 @@ class mit_b3(MixVisionTransformer):
         super(mit_b3, self).__init__(
             patch_size=4, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
             qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[3, 4, 18, 3], sr_ratios=[8, 4, 2, 1],
-            drop_rate=0.0, drop_path_rate=0.1)
+            drop_rate=0.0, drop_path_rate=0.1, **kwargs)
 
 
 @register_backbone
 class mit_b4(MixVisionTransformer):
     def __init__(self, **kwargs):
-        super(mit_b4, self).__init__(
-            patch_size=4, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
-            qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[3, 8, 27, 3], sr_ratios=[8, 4, 2, 1],
-            drop_rate=0.0, drop_path_rate=0.1)
+        # Set default values but allow override through kwargs
+        default_kwargs = {
+            'patch_size': 4, 
+            'embed_dims': [64, 128, 320, 512], 
+            'num_heads': [1, 2, 5, 8], 
+            'mlp_ratios': [4, 4, 4, 4],
+            'qkv_bias': True, 
+            'norm_layer': partial(nn.LayerNorm, eps=1e-6), 
+            'depths': [3, 8, 27, 3], 
+            'sr_ratios': [8, 4, 2, 1],
+            'drop_rate': 0.0, 
+            'drop_path_rate': 0.1
+        }
+        # Update defaults with any provided kwargs
+        default_kwargs.update(kwargs)
+        super(mit_b4, self).__init__(**default_kwargs)
 
 
 @register_backbone
@@ -442,4 +454,4 @@ class mit_b5(MixVisionTransformer):
         super(mit_b5, self).__init__(
             patch_size=4, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
             qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[3, 6, 40, 3], sr_ratios=[8, 4, 2, 1],
-            drop_rate=0.0, drop_path_rate=0.1)
+            drop_rate=0.0, drop_path_rate=0.1, **kwargs)

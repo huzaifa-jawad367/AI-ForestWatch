@@ -38,9 +38,9 @@ class MultiScaleMultiDecoder(nn.Module):
     def forward(self, mff_outputs, encoder_outputs):
         # mff_outputs: [MFF_1, MFF_2, MFF_3]
         # encoder_outputs: [TB1, TB2, TB3, TB4]
-        print("--------------------------------")
-        print("MultiScaleMultiDecoder forward")
-        print("--------------------------------")
+        # print("--------------------------------")
+        # print("MultiScaleMultiDecoder forward")
+        # print("--------------------------------")
         TB4 = encoder_outputs[3]
         MFF_1, MFF_2, MFF_3 = mff_outputs
         # Step 1: x and out3
@@ -52,8 +52,8 @@ class MultiScaleMultiDecoder(nn.Module):
         out3 = self.mff3_tb4_out3_conv3x3(mff3_tb4_cat)
         out3 = F.relu(out3, inplace=True)
         out3 = self.mff3_tb4_out3_conv1x1(out3)
-        print(f"Shape of x at end of step 1: {x.shape}")
-        print(f"Shape of out3 at end of step 1: {out3.shape}")
+        # print(f"Shape of x at end of step 1: {x.shape}")
+        # print(f"Shape of out3 at end of step 1: {out3.shape}")
         # Step 2: x and out2
         mff2_x_cat = torch.cat([MFF_2, x], dim=1)
         x2 = self.mff2_x_conv3x3(mff2_x_cat)
@@ -62,14 +62,14 @@ class MultiScaleMultiDecoder(nn.Module):
         out2 = self.mff2_x_out2_conv3x3(mff2_x_cat)
         out2 = F.relu(out2, inplace=True)
         out2 = self.mff2_x_out2_conv1x1(out2)
-        print(f"Shape of x2 at end of step 2: {x2.shape}")
-        print(f"Shape of out2 at end of step 2: {out2.shape}")
+        # print(f"Shape of x2 at end of step 2: {x2.shape}")
+        # print(f"Shape of out2 at end of step 2: {out2.shape}")
         # Step 3: out1
         mff1_x_cat = torch.cat([MFF_1, x2], dim=1)
         out1 = self.mff1_x_conv3x3(mff1_x_cat)
         out1 = F.relu(out1, inplace=True)
         out1 = self.mff1_x_out1_conv1x1(out1)
-        print(f"Shape of out1 at end of step 3: {out1.shape}")
+        # print(f"Shape of out1 at end of step 3: {out1.shape}")
         if self.training:
             return [out1, out2, out3]
         else:

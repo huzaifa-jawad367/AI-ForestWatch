@@ -11,6 +11,7 @@ from torch.nn.utils import clip_grad_norm_
 from utils import MetricTracker, inf_loop
 from utils import MultiLossMetricTracker
 from sklearn.metrics import classification_report
+from tqdm import tqdm
 
 
 class Trainer(BaseTrainer):
@@ -39,10 +40,9 @@ class Trainer(BaseTrainer):
         self.lr_scheduler = lr_scheduler
         self.log_step = int(np.sqrt(data_loader.batch_size))
 
-        # Replace train_metrics with MultiLossMetricTracker
-        self.train_metrics = MultiLossMetricTracker(num_losses=3)
-        # self.train_metrics = MetricTracker(
-        #     'loss', *[m.__name__ for m in self.metric_ftns])
+        # Replace train_metrics with MetricTracker for individual metrics
+        self.train_metrics = MetricTracker(
+            'loss', *[m.__name__ for m in self.metric_ftns])
         self.valid_metrics = MetricTracker(
             'loss', *[m.__name__ for m in self.metric_ftns])
 
@@ -56,16 +56,19 @@ class Trainer(BaseTrainer):
         
         self.model.train()
         self.train_metrics.reset()
-        for batch_idx, (data, target) in enumerate(self.data_loader):
+        
+        # Add progress bar
+        pbar = tqdm(self.data_loader, desc=f'Epoch {epoch}', leave=False)
+        for batch_idx, (data, target) in enumerate(pbar):
             data, target = data.to(self.device), target.to(self.device)
 
             self.optimizer.zero_grad()
             outputs = self.model(data)  # [out1, out2, out3] (upsampled)
             outs = outputs  # raw outputs for loss
             softmaxed = [torch.nn.functional.softmax(o, dim=1) for o in outputs]  # softmaxed outputs for prediction/metrics
-            print("--------------------------------")
-            print("Train Epoch")
-            print("--------------------------------")
+            # print("--------------------------------")
+            # print("Train Epoch")
+            # print("--------------------------------")
             # Use the highest resolution output for prediction
             preds = [torch.argmax(sm, dim=1) for sm in softmaxed]
             loss_target = target.clone()
@@ -95,18 +98,20 @@ class Trainer(BaseTrainer):
             clip_grad_norm_(self.model.parameters(), 0.05)
             self.optimizer.step()
 
-            print(f"type loss_target: {type(loss_target)}")
-            print(f"shape of loss_target: {loss_target.shape}")
-            # Update MultiLossMetricTracker for training
-            self.train_metrics.update(individual_losses, loss.item())
+            # print(f"type loss_target: {type(loss_target)}")
+            # print(f"shape of loss_target: {loss_target.shape}")
+            # Update MetricTracker for training
+            self.train_metrics.update('loss', loss.item())
             for met in self.metric_ftns:
-                print(f"Type of accuracy: {type(met(softmaxed, loss_target))}")
-                print(met(softmaxed, loss_target))
+                # print(f"Type of accuracy: {type(met(softmaxed, loss_target))}")
+                # print(met(softmaxed, loss_target))
+                # print(met.__name__)
                 self.train_metrics.update(
                     met.__name__, met(softmaxed, loss_target))
-            print("---SUCCESSFUL---")
-            import sys; sys.exit(0)
 
+            # Update progress bar with current loss
+            pbar.set_postfix({'Loss': f'{loss.item():.6f}'})
+            
             if batch_idx % self.log_step == 0:
                 self.logger.debug('Train Epoch: {} {} Loss: {:.6f}'.format(
                     epoch,
@@ -130,6 +135,9 @@ class Trainer(BaseTrainer):
             except FileNotFoundError:
                 self.logger.info("No model_best.pth found, skipping testing ...")
 
+        # print("---SUCCESSFUL---")
+        # import sys; sys.exit(0)
+
         if self.lr_scheduler is not None:
             self.lr_scheduler.step()
         return log
@@ -146,26 +154,34 @@ class Trainer(BaseTrainer):
         self.model.eval()
         self.valid_metrics.reset()
         with torch.no_grad():
-            for batch_idx, (data, target) in enumerate(data_loader):
+            # Add progress bar for validation
+            pbar = tqdm(data_loader, desc='Validation', leave=False)
+            for batch_idx, (data, target) in enumerate(pbar):
                 data, target = data.to(self.device), target.to(self.device)
 
-                out_x, softmaxed = self.model(data)
-                pred = torch.argmax(softmaxed, dim=1)
+                outputs = self.model(data)  # In eval mode, this is [out1] (list of length 1)
+                softmaxed = [torch.nn.functional.softmax(o, dim=1) for o in outputs]
+                pred = torch.argmax(softmaxed[0], dim=1)  # Use the first (and only) output
                 loss_target = target.clone()
                 loss_target[loss_target != 0] -= 1
                 loss_target = loss_target.squeeze(1)
-                loss = self.criterion(softmaxed, loss_target)
+                # In eval mode, use regular CrossEntropyLoss since we only have one output
+                ce_loss = torch.nn.CrossEntropyLoss()
+                loss = ce_loss(outputs[0], loss_target)
 
                 self.valid_metrics.update('loss', loss.item())
                 for met in self.metric_ftns:
                     self.valid_metrics.update(
-                        met.__name__, met(softmaxed, loss_target))
+                        met.__name__, met(softmaxed[0], loss_target))
 
                 label_valid_indices = (target.view(-1) != 0)
                 valid_pred = pred.view(-1)[label_valid_indices]
                 valid_label = target.view(-1)[label_valid_indices] - 1
                 preds = np.concatenate((preds, valid_pred.view(-1).cpu()), axis=0)
                 targets = np.concatenate((targets, valid_label.view(-1).cpu()), axis=0)
+                
+                # Update validation progress bar
+                pbar.set_postfix({'Val Loss': f'{loss.item():.6f}'})
         log = self.valid_metrics.result()
         log['classification_report'] = "\n" + classification_report(targets, preds, target_names=('Non-Forest', 'Forest'))
         return log

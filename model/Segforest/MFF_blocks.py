@@ -53,16 +53,16 @@ class MFFBlocks(nn.Module):
 
     def forward(self, outs):
         # outs: list of 4 tensors from MixVisionTransformer
-        print("--------------------------------")
-        print("MFFBlocks forward")
-        print("--------------------------------")
+        # print("--------------------------------")
+        # print("MFFBlocks forward")
+        # print("--------------------------------")
         mff_outputs = []
         for k in range(1, 4):  # k = 1, 2, 3
             # Concatenate features for this k value
             concatenated = self.feature_concat(outs, k)
             # Pass through the corresponding MFF block
             mff_output = self.mff_blocks[k-1](concatenated)
-            print(f"Shape of MFF block output {k}: {mff_output.shape}")
+            # print(f"Shape of MFF block output {k}: {mff_output.shape}")
             mff_outputs.append(mff_output)
         return mff_outputs
 
