@@ -32,9 +32,27 @@ def f1_score(output, target):
 
 def accuracy(output, target):
     with torch.no_grad():
-        # Use the highest resolution output (output[0])
-        pred = torch.argmax(output[0], dim=1)
-        assert pred.shape[0] == len(target)
+        # Handle both list and tensor inputs
+        if isinstance(output, list):
+            # If output is a list, use the first element
+            pred = torch.argmax(output[0], dim=1)
+        else:
+            # If output is a tensor, use it directly
+            pred = torch.argmax(output, dim=1)
+        
+        # print(f"type of pred: {type(pred)}")
+        # print(f"shape of pred: {pred.shape}")
+        # print(f"type of target: {type(target)}")
+        # print(f"length of target: {len(target)}")
+        # print(f"shape of target: {target.shape}")
+        # print(f"type of output: {type(output)}")
+        # print(f"length of output: {len(output)}")
+        if isinstance(output, list):
+            print(f"shape of output[0]: {output[0].shape}")
+        else:
+            print(f"shape of output: {output.shape}")
+        
+        assert pred.shape[0] == target.shape[0]  # Check batch size matches
         correct = 0
         correct += torch.sum(pred == target).item()
-    return correct / (target.shape[1]*target.shape[2]*len(target)) 
+    return correct / (target.shape[1]*target.shape[2]*target.shape[0]) 
