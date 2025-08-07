@@ -108,6 +108,8 @@ class Trainer(BaseTrainer):
                 # print(met.__name__)
                 self.train_metrics.update(
                     met.__name__, met(softmaxed, loss_target))
+            print("---SUCCESSFUL---")
+            import sys; sys.exit(0)
 
             # Update progress bar with current loss
             pbar.set_postfix({'Loss': f'{loss.item():.6f}'})
