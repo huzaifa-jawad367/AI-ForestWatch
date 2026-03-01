@@ -9,6 +9,7 @@ from .models.unet_se_resnet import UNetSE_resnet
 from .models.unet3plus_se import UNet3PlusSE
 from .models.unet_mff import UNetMFF, MFFBlock
 from .models.segformer import CustomSegformer
+from .models.unet3plus_mff_se import UNet3PlusMFFSE
 from .model import check_model
 
 __all__ = [
@@ -23,5 +24,6 @@ __all__ = [
     'MFFBlock',
     'UNet3PlusSE',
     'CustomSegformer',
+    'UNet3PlusMFFSE',
     'check_model'
 ]

@@ -24,6 +24,7 @@ from .models.unet_se_resnet import UNetSE_resnet as UNetSEResnetModel
 from .models.unet3plus_se import UNet3PlusSE as UNet3PlusSEModel
 from .models.unet_mff import UNetMFF as UNetMFFModel
 from .models.segformer import CustomSegformer as CustomSegformerModel
+from .models.unet3plus_mff_se import UNet3PlusMFFSE as UNet3PlusMFFSEModel
 
 
 # -----------------------------
@@ -65,6 +66,17 @@ def UNetSEResnet(input_channels, num_classes, se_reduction=16, se_flags=None):
 def CustomSegformer(input_channels, num_classes, base_model='nvidia/mit-b0'):
     return CustomSegformerModel(input_channels=input_channels, num_classes=num_classes,
                                 base_model=base_model)
+
+
+def UNet3PlusMFFSE(input_channels, num_classes,
+                   se_reduction=16, se_flags=None, use_mff=True):
+    return UNet3PlusMFFSEModel(
+        input_channels=input_channels,
+        num_classes=num_classes,
+        se_reduction=se_reduction,
+        se_flags=se_flags,
+        use_mff=use_mff
+    )
 
 
 # -----------------------------
@@ -109,6 +121,12 @@ def check_model(model_type="UNet",
         model = CustomSegformer(input_channels=input_channels,
                                 num_classes=num_classes,
                                 base_model=base_model)
+
+    elif model_type == "UNet3PlusMFFSE":
+        model = UNet3PlusMFFSE(input_channels=input_channels,
+                               num_classes=num_classes,
+                               se_reduction=se_reduction,
+                               se_flags=se_flags)
     else:
         raise ValueError(f"Unknown model type: {model_type}")
 
