@@ -18,11 +18,12 @@ from torchvision import models
 # -----------------------------
 # Import model variants
 # -----------------------------
-from .models.unet import UNet as UNetModel
+from .models.unet import UNet as UNetModel, UNet3Plus as UNet3PlusModel
 from .models.unet_se_vgg import UNetSE as UNetSEModel
 from .models.unet_se_resnet import UNetSE_resnet as UNetSEResnetModel
 from .models.unet3plus_se import UNet3PlusSE as UNet3PlusSEModel
 from .models.unet_mff import UNetMFF as UNetMFFModel
+from .models.unet3plus_mff import UNet3PlusMFF as UNet3PlusMFFModel
 from .models.segformer import CustomSegformer as CustomSegformerModel
 from .models.unet3plus_mff_se import UNet3PlusMFFSE as UNet3PlusMFFSEModel
 
@@ -32,6 +33,14 @@ from .models.unet3plus_mff_se import UNet3PlusMFFSE as UNet3PlusMFFSEModel
 # -----------------------------
 def UNet(input_channels, num_classes, topology="ENC_4_DEC_4"):
     return UNetModel(topology=topology, input_channels=input_channels, num_classes=num_classes)
+
+
+def UNet3Plus(input_channels, num_classes):
+    return UNet3PlusModel(input_channels=input_channels, num_classes=num_classes)
+
+
+def UNet3PlusMFF(input_channels, num_classes, use_mff=True):
+    return UNet3PlusMFFModel(input_channels=input_channels, num_classes=num_classes, use_mff=use_mff)
 
 
 def UNetSE(input_channels, num_classes, topology="ENC_4_DEC_4",
@@ -95,6 +104,14 @@ def check_model(model_type="UNet",
     if model_type == "UNet":
         model = UNet(topology=topology, input_channels=input_channels,
                      num_classes=num_classes)
+
+    elif model_type == "UNet3Plus":
+        model = UNet3Plus(input_channels=input_channels,
+                          num_classes=num_classes)
+
+    elif model_type == "UNet3PlusMFF":
+        model = UNet3PlusMFF(input_channels=input_channels,
+                             num_classes=num_classes)
 
     elif model_type == "UNetSE":
         model = UNetSE(topology=topology, input_channels=input_channels,
@@ -176,6 +193,18 @@ if __name__ == '__main__':
         input_channels=INPUT_CHANNELS,
         num_classes=NUM_CLASSES,
         topology="ENC_4_DEC_4"
+    ))
+
+    # ---------- 1b. UNet3Plus ----------
+    _test_model("UNet3Plus", UNet3Plus(
+        input_channels=INPUT_CHANNELS,
+        num_classes=NUM_CLASSES
+    ))
+
+    # ---------- 1c. UNet3PlusMFF ----------
+    _test_model("UNet3PlusMFF", UNet3PlusMFF(
+        input_channels=INPUT_CHANNELS,
+        num_classes=NUM_CLASSES
     ))
 
     # ---------- 2. UNetSE (VGG backbone) ----------
