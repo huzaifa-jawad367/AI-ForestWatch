@@ -114,3 +114,16 @@ __MACOSX/
 
 # generated plots
 visualisation/plots*/
+se_analysis_results/
+se_feature_analysis_results/
+*.pdf
+*.png
+
+# architecture dumps
+arch_comparison/
+
+# Local agent workspace (not part of the ForestWatch application)
+research_map/
+scripts/
+tests/
+AGENTS.md

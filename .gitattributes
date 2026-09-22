@@ -1,0 +1,2 @@
+# Frozen hashes must survive Windows/Linux checkout without newline conversion.
+config/protocol_v3/artifacts/**/*.json -text

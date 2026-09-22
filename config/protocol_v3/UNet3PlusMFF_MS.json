@@ -1,0 +1,117 @@
+{
+    "name":  "Landsat8_UNet3PlusMFF_MS_v3",
+    "n_gpu":  1,
+    "arch":  {
+                 "type":  "UNet3PlusMFF",
+                 "args":  {
+                              "input_channels":  18,
+                              "num_classes":  2,
+                              "use_mff":  true
+                          }
+             },
+    "train_data_loader":  {
+                              "type":  "Landsat8TrainDataLoader",
+                              "args":  {
+                                           "data_dir":  "Data/train/training_2015_pickled_data_18bands",
+                                           "data_split_lists_path":  "Data/train/temp_split_18bands",
+                                           "batch_size":  32,
+                                           "model_input_size":  128,
+                                           "bands":  [
+                                                         1,
+                                                         2,
+                                                         3,
+                                                         4,
+                                                         5,
+                                                         6,
+                                                         7,
+                                                         8,
+                                                         9,
+                                                         10,
+                                                         11,
+                                                         12,
+                                                         13,
+                                                         14,
+                                                         15,
+                                                         16,
+                                                         17,
+                                                         18
+                                                     ],
+                                           "num_classes":  2,
+                                           "one_hot":  true,
+                                           "split_manifest":  "config/protocol_v3/artifacts/small/split.json",
+                                           "split_manifest_sha256":  "a3e3f43bad7d3d94e17073d0b1581b9c429f3030c707b51fce669793d41ee2f1",
+                                           "normalization_path":  "config/protocol_v3/artifacts/small/normalization.json",
+                                           "normalization_sha256":  "5835d8c93a1904ebe06d81ce00058d5f23bf3f5bc930d717e4168dabf676f0be",
+                                           "input_clip":  10.0
+                                       }
+                          },
+    "inference_data_loader":  {
+                                  "type":  "Landsat8InferenceDataLoader",
+                                  "data_path":  "/content/drive/MyDrive/Forest_DAAD_Data/inference/images",
+                                  "destination":  "saved/inference",
+                                  "args":  {
+                                               "rasterized_shapefiles_path":  "/content/drive/MyDrive/Forest_DAAD_Data/inference/shapefiles",
+                                               "bands":  [
+                                                             1,
+                                                             2,
+                                                             3,
+                                                             4,
+                                                             5,
+                                                             6,
+                                                             7,
+                                                             8,
+                                                             9,
+                                                             10,
+                                                             11,
+                                                             12,
+                                                             13,
+                                                             14,
+                                                             15,
+                                                             16,
+                                                             17,
+                                                             18
+                                                         ],
+                                               "model_input_size":  128,
+                                               "num_classes":  2,
+                                               "batch_size":  32
+                                           }
+                              },
+    "optimizer":  {
+                      "type":  "AdamW",
+                      "args":  {
+                                   "lr":  0.0003,
+                                   "weight_decay":  0.0001
+                               }
+                  },
+    "loss":  "focal_loss2d",
+    "metrics":  [
+                    "accuracy",
+                    "f1_score",
+                    "precision",
+                    "recall",
+                    "compute_iou"
+                ],
+    "lr_scheduler":  {
+                         "type":  "CosineAnnealingLR",
+                         "args":  {
+                                      "T_max":  60,
+                                      "eta_min":  1E-06
+                                  }
+                     },
+    "trainer":  {
+                    "epochs":  60,
+                    "save_dir":  "saved/experiments_3seeds",
+                    "pretrained_model":  null,
+                    "save_period":  1,
+                    "verbosity":  2,
+                    "monitor":  "min val_loss",
+                    "early_stop":  0,
+                    "mode":  "train",
+                    "amp":  false,
+                    "precision":  "fp32",
+                    "mask_unknown_labels":  true,
+                    "unknown_label":  0,
+                    "ignore_index":  -100
+                },
+    "protocol_id":  "ai_forestwatch_3seed_fp32_v3"
+}

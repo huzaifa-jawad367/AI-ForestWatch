@@ -19,7 +19,7 @@ The aim of this project is to use Landsat-8 imagery to perform forest cover chan
   ├── train.py - main script to start training
   ├── inference.py - inference using trained model
   │
-  ├── config.json - holds configuration for training
+  ├── config/protocol_v3/ - current training configs and frozen data artifacts
   ├── parse_config.py - class to handle config file and cli options
   │
   ├── base/ - abstract base classes and data generation
@@ -39,6 +39,8 @@ The aim of this project is to use Landsat-8 imagery to perform forest cover chan
   │   ├── metric.py
   │   └── loss.py
   │
+  ├── install.sh - environment installation helper
+  │
   ├── saved/
   │   ├── error_maps/ - error_maps are saved here
   │   ├── models/ - trained models are saved here
@@ -51,8 +53,16 @@ The aim of this project is to use Landsat-8 imagery to perform forest cover chan
   │   ├── logger.py
   │   └── logger_config.json
   │  
-  └── utils/ - small utility functions
-      └── util.py
+  ├── utils/ - small utility functions
+  │   └── util.py
+  │
+  └── visualisation/ - scripts for QA, plotting, and visualizations
+      ├── plot_parameter.py
+      ├── qa_generate.py
+      ├── test_visualize.py
+      ├── combine_visualisations.py
+      ├── generate_paper_figure.py
+      └── generate_rgb.py
   ```
 
 
@@ -61,7 +71,9 @@ First install necessary requirements using
 
     pip install -r requirements.txt
     
-Edit `config.json` to replace paths as required.
+Choose a current configuration from `config/protocol_v3/`. Local dataset paths
+may be adjusted, but the frozen manifest and normalization hashes must continue
+to match.
 
 ## Data Collection
 First you need to create the necessary pickle files used for either training or inference. These can be generated using data from Landsat8. We used images from year 2015 for training/validation and from years 2014, 2016-2020 for inference. If you want to use your own files, then you can use Google Earth Engine. 
@@ -72,12 +84,14 @@ Once you obtain the necessary `.tiff` files, you can use [`get_images_from_large
 Having done so, it is possible to generate training, validation and testing dataloaders. Doing this for the first time may take longer than subsequent attempts. So, it is recommended to initialize [`Landsat8DataLoader`](./data_loader/data_loaders.py#L14) for all three sets of data once before training. 
 
 ## Training
-Training is done using U-Net Topology with VGG11 backbone. A sample [pretrained model](./config.json#L57) that we have trained is used as the default checkpoint. If it is not found, then training will start from scratch unless a checkpoint is provided through command line.
+Training configurations for the supported architecture matrix are stored in
+`config/protocol_v3/`. New runs start from scratch unless a compatible v3
+checkpoint is explicitly provided.
 
-The following command starts training of the model using the options specified in `./config.json`. The optional keyword argument `--config path/to/config.json` can be used to specify another config file to be used.
+The following command starts training using an explicit current config:
 
   ```
-  python train.py
+  python train.py --config config/protocol_v3/UNet_MS.json --epochs 60 --seed 42
   ```
 
 ### Resuming from checkpoints
@@ -104,7 +118,8 @@ For inference, two data directories are required. These include:
     Landsat8) are required
  2. Shapefiles for these images
 
-We have provided our own datasets for containing this file in the provided Google Drive folder. We have specified the paths to these datasets in the [configuration file](./config.json#28).  You can change these to point to your own dataset.
+We have provided our own datasets in the linked Google Drive folder. Inference
+paths should be supplied in the selected configuration for your environment.
 
 You may use our pretrained model for inference or pass another checkpoint. By default, if you run `python inference.py`, then inference will be performed for all files in `data_path` directory. If you wish to perform inference for specific districts and/or years, an example command is as follows:
 
