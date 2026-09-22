@@ -20,6 +20,14 @@ FOREST_LABEL, NON_FOREST_LABEL, NULL_LABEL = 2, 1, 0
 
 def main(config, args):
     logger = config.get_logger('test')
+    normalization = None
+    if config.get('protocol_id') is not None:
+        from utils.training_protocol import load_normalization
+        preprocessing = config['train_data_loader']['args']
+        inference_bands = config['inference_data_loader']['args']['bands']
+        normalization = load_normalization(
+            preprocessing['normalization_path'], preprocessing['normalization_sha256'],
+            preprocessing['split_manifest_sha256'], inference_bands)
 
     # build model architecture
     model = config.init_obj('arch', module_arch)
@@ -82,6 +90,13 @@ def main(config, args):
                 coordinates, test_x = data['coordinates'].tolist(
                 ), data['input']
                 test_x = test_x.to(device)
+                if normalization is not None:
+                    mean, std = normalization
+                    mean = torch.as_tensor(mean, device=device).view(1, -1, 1, 1)
+                    std = torch.as_tensor(std, device=device).view(1, -1, 1, 1)
+                    clip = preprocessing['input_clip']
+                    test_x = ((test_x.float() - mean) / std).nan_to_num(
+                        nan=0.0, posinf=clip, neginf=-clip).clamp(-clip, clip)
                 _, softmaxed = model.forward(test_x)
                 pred = torch.argmax(softmaxed, dim=1)
                 pred_numpy = pred.cpu().numpy().transpose(1, 2, 0)
