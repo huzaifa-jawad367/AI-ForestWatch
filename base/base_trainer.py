@@ -4,9 +4,15 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import os
+import random
+import tempfile
+
+import numpy as np
 import torch
 from abc import abstractmethod
 from numpy import inf
+from pathlib import Path
 
 class BaseTrainer:
     """
@@ -47,7 +53,7 @@ class BaseTrainer:
         if config.resume is not None:
             self._resume_checkpoint(config.resume)
         # pretrained model specified in config.json
-        elif 'pretrained_model' in cfg_trainer:
+        elif cfg_trainer.get('pretrained_model') is not None:
             self._resume_checkpoint(cfg_trainer['pretrained_model'])
 
     @abstractmethod
@@ -64,6 +70,7 @@ class BaseTrainer:
         Full training logic
         """
         not_improved_count = 0
+        last_epoch = self.start_epoch - 1
         for epoch in range(self.start_epoch, self.epochs + 1):
             result = self._train_epoch(epoch)
 
@@ -92,16 +99,28 @@ class BaseTrainer:
                     self.mnt_best = log[self.mnt_metric]
                     not_improved_count = 0
                     best = True
+                    if hasattr(self, '_write_to_log'):
+                        self._write_to_log(f"  >> New best model! {self.mnt_metric}: {self.mnt_best}")
                 else:
                     not_improved_count += 1
 
                 if not_improved_count > self.early_stop:
                     self.logger.info("Validation performance didn\'t improve for {} epochs. "
                                      "Training stops.".format(self.early_stop))
+                    if hasattr(self, '_write_to_log'):
+                        self._write_to_log(f"\nEarly stopping triggered after {self.early_stop} epochs without improvement.")
+                    self._save_checkpoint(epoch, save_best=best, is_last=True)
+                    last_epoch = epoch
                     break
 
             # Save the most recent checkpoint as model_last.pth (overwrites previous)
             self._save_checkpoint(epoch, save_best=best, is_last=True)
+            last_epoch = epoch
+
+        # Checkpoint selection includes the final epoch. Evaluation must not
+        # mutate the state that was just saved, nor precede best selection.
+        if hasattr(self, '_final_evaluation'):
+            self._final_evaluation(last_epoch)
         
         # Close TensorBoard writer if it exists
         if hasattr(self, 'close_tensorboard'):
@@ -122,33 +141,84 @@ class BaseTrainer:
             'state_dict': self.model.state_dict(),
             'optimizer': self.optimizer.state_dict(),
             'monitor_best': self.mnt_best,
-            'config': self.config
+            'config': self.config,
+            'rng_state': self._capture_rng_state(),
+            'rng_state_version': 1,
         }
         
         if is_last:
-            # Clean up old model_last_epoch*.pth files
+            # Commit the new checkpoint before removing the previous one. This
+            # leaves at least one complete resumable checkpoint after a crash.
             import glob
-            import os
+            filename = str(self.checkpoint_dir / 'model_last_epoch{}.pth'.format(epoch))
+            self._atomic_torch_save(state, filename)
+            self._atomic_torch_save(state, self.checkpoint_dir / 'model_last.pth')
             old_last_files = glob.glob(str(self.checkpoint_dir / 'model_last_epoch*.pth'))
             for old_file in old_last_files:
+                if os.path.abspath(old_file) == os.path.abspath(filename):
+                    continue
                 try:
                     os.remove(old_file)
                 except OSError:
                     pass
-            
-            # Save new last checkpoint with epoch number
-            filename = str(self.checkpoint_dir / 'model_last_epoch{}.pth'.format(epoch))
-            torch.save(state, filename)
             self.logger.info("Saving last checkpoint: {} ...".format(filename))
         else:
             filename = str(self.checkpoint_dir / 'checkpoint-epoch{}.pth'.format(epoch))
-            torch.save(state, filename)
+            self._atomic_torch_save(state, filename)
             self.logger.info("Saving checkpoint: {} ...".format(filename))
             
         if save_best:
             best_path = str(self.checkpoint_dir / 'model_best.pth')
-            torch.save(state, best_path)
+            self._atomic_torch_save(state, best_path)
             self.logger.info("Saving current best: model_best.pth ...")
+
+    @staticmethod
+    def _atomic_torch_save(state, destination):
+        """Durably write a checkpoint and atomically replace its destination."""
+        destination = Path(destination)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp_name = tempfile.mkstemp(
+            prefix=f".{destination.name}.", suffix=".tmp",
+            dir=str(destination.parent),
+        )
+        try:
+            with os.fdopen(fd, 'wb') as handle:
+                torch.save(state, handle)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(tmp_name, destination)
+        except Exception:
+            try:
+                os.unlink(tmp_name)
+            except OSError:
+                pass
+            raise
+
+    @staticmethod
+    def _capture_rng_state():
+        state = {
+            'python': random.getstate(),
+            'numpy': np.random.get_state(),
+            'torch_cpu': torch.get_rng_state(),
+            'torch_cuda': None,
+        }
+        if torch.cuda.is_available():
+            state['torch_cuda'] = torch.cuda.get_rng_state_all()
+        return state
+
+    def _restore_rng_state(self, state):
+        if not state:
+            self.logger.warning(
+                "Checkpoint has no RNG state; resume is supported but will not "
+                "be bit-for-bit equivalent to uninterrupted training."
+            )
+            return
+        random.setstate(state['python'])
+        np.random.set_state(state['numpy'])
+        torch.set_rng_state(state['torch_cpu'])
+        if state.get('torch_cuda') is not None and torch.cuda.is_available():
+            torch.cuda.set_rng_state_all(state['torch_cuda'])
+        self.logger.info("Python, NumPy, PyTorch CPU, and CUDA RNG states restored.")
 
     def _resume_checkpoint(self, resume_path):
         """
@@ -176,5 +246,7 @@ class BaseTrainer:
                                     "Optimizer parameters not being resumed.")
             else:
                 self.optimizer.load_state_dict(checkpoint['optimizer'])
+
+            self._restore_rng_state(checkpoint.get('rng_state'))
 
         self.logger.info("Checkpoint loaded. Resume training from epoch {}".format(self.start_epoch))

@@ -5,6 +5,8 @@
 # LICENSE file in the root directory of this source tree.
 
 import json
+import os
+import tempfile
 import torch
 import pandas as pd
 from pathlib import Path
@@ -25,8 +27,22 @@ def read_json(fname):
 
 def write_json(content, fname):
     fname = Path(fname)
-    with fname.open('wt') as handle:
-        json.dump(content, handle, indent=4, sort_keys=False)
+    fname.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{fname.name}.", suffix=".tmp", dir=str(fname.parent)
+    )
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as handle:
+            json.dump(content, handle, indent=4, sort_keys=False)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp_name, fname)
+    except Exception:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
 
 def inf_loop(data_loader):
     ''' wrapper function for endless data loader. '''
@@ -57,18 +73,17 @@ class MetricTracker:
         self.reset()
 
     def reset(self):
-        for col in self._data.columns:
-            self._data[col].values[:] = 0
+        self._data.loc[:, :] = 0
 
     def update(self, key, value, n=1):
         if self.writer is not None:
             self.writer.add_scalar(key, value)
-        self._data.total[key] += value * n
-        self._data.counts[key] += n
-        self._data.average[key] = self._data.total[key] / self._data.counts[key]
+        self._data.loc[key, 'total'] += value * n
+        self._data.loc[key, 'counts'] += n
+        self._data.loc[key, 'average'] = self._data.loc[key, 'total'] / self._data.loc[key, 'counts']
 
     def avg(self, key):
-        return self._data.average[key]
+        return self._data.loc[key, 'average']
 
     def result(self):
-        return dict(self._data.average)
+        return dict(self._data['average'])

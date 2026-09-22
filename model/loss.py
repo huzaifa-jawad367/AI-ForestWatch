@@ -10,15 +10,22 @@ import torch.nn.functional as F
 import numpy as np
 
 class FocalLoss2d(nn.Module):
+    """Multiclass focal loss on raw logits (never already-softmaxed scores)."""
     # output : NxCxHxW float tensor
     # target :  NxHxW long tensor
     # weights : C float tensor
-    def __init__(self, gamma=2, weight=None):
+    def __init__(self, gamma=2, weight=None, ignore_index=-100):
         super(FocalLoss2d, self).__init__()
         self.gamma = gamma
-        self.nll_loss = nn.NLLLoss(weight)
+        self.ignore_index = ignore_index
+        self.nll_loss = nn.NLLLoss(weight, ignore_index=ignore_index)
 
     def forward(self, inputs, targets):
+        valid = targets != self.ignore_index
+        if not valid.any():
+            # A differentiable zero avoids NaNs from mean reduction over an
+            # empty set. The trainer skips the optimizer step for this case.
+            return inputs.sum() * 0.0
         return self.nll_loss((1 - F.softmax(inputs, dim=1)) ** self.gamma * F.log_softmax(inputs, dim=1), targets)
 
 def check_focal_loss2d():
@@ -31,11 +38,12 @@ def check_focal_loss2d():
     loss_val = focal_loss2d(logits, target, weight=weights)
     print("Focalloss2d: ", loss_val.item())
 
-def focal_loss2d(output, target, weights=None):
-    if not weights:
-        weights = torch.Tensor([10, 10])
-        weights = weights.cuda() if torch.cuda.is_available() else weights
-    return FocalLoss2d(weight=weights)(output, target)
+def focal_loss2d(output, target, weights=None, ignore_index=-100):
+    if weights is None:
+        weights = torch.tensor([10, 10], device=output.device, dtype=output.dtype)
+    else:
+        weights = torch.as_tensor(weights, device=output.device, dtype=output.dtype)
+    return FocalLoss2d(weight=weights, ignore_index=ignore_index)(output, target)
 
 if __name__ == '__main__':
     check_focal_loss2d()

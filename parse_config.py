@@ -33,15 +33,26 @@ class ConfigParser:
 
         exper_name = self.config['name']
         model_type = self.config['arch']['type']
-        if run_id is None: # use timestamp as default run-id
-            run_id = datetime.now().strftime(r'%m%d_%H%M%S')
-        self._models_dir = save_dir / 'models' / exper_name / model_type / run_id
+        if self.resume is not None:
+            resume_dir = Path(self.resume).resolve().parent
+            resumed_run_id = resume_dir.name
+            if run_id is not None and run_id != resumed_run_id:
+                raise ValueError(
+                    "Resume is in-place; omit --run_id or use the checkpoint "
+                    f"directory name '{resumed_run_id}'."
+                )
+            run_id = resumed_run_id
+            self._models_dir = resume_dir
+        else:
+            if run_id is None: # use timestamp as default run-id
+                run_id = datetime.now().strftime(r'%m%d_%H%M%S')
+            self._models_dir = save_dir / 'models' / exper_name / model_type / run_id
         self._log_dir = save_dir / 'log' / exper_name / model_type / run_id
         self._error_maps_dir = save_dir / 'error_maps' / exper_name / model_type / run_id
         self._inference_dir = save_dir / 'destination' / exper_name / model_type / run_id
 
         # make directory for saving checkpoints, log, and error maps.
-        exist_ok = run_id == ''
+        exist_ok = self.resume is not None or run_id == ''
         self.models_dir.mkdir(parents=True, exist_ok=exist_ok)
         self.log_dir.mkdir(parents=True, exist_ok=exist_ok)
         self.error_maps_dir.mkdir(parents=True, exist_ok=exist_ok)
@@ -59,7 +70,7 @@ class ConfigParser:
         }
 
     @classmethod
-    def from_args(cls, args, options=''):
+    def from_args(cls, args, options='', require_training_protocol=False):
         """
         Initialize this class from some cli arguments. Used in train, test.
         """
@@ -86,7 +97,20 @@ class ConfigParser:
 
         # parse custom cli options into dictionary
         modification = {opt.target : getattr(args, _get_opt_name(opt.flags)) for opt in options}
-        return cls(config, resume, modification)
+        if require_training_protocol:
+            from utils.training_protocol import validate_training_config, assert_resume_compatible
+            config = _update_config(config, modification)
+            validate_training_config(config)
+            if resume:
+                assert_resume_compatible(config, read_json(cfg_fname))
+                from utils.training_protocol import load_checkpoint
+                checkpoint = load_checkpoint(resume)
+                if 'epoch' not in checkpoint or 'config' not in checkpoint:
+                    raise ValueError('Resume requires a complete v3 training checkpoint')
+                assert_resume_compatible(config, checkpoint['config'])
+            # Preflight above must happen BEFORE creating output directories or
+            # overwriting a resumed run's saved configuration.
+        return cls(config, resume, modification, run_id=getattr(args, 'run_id', None))
 
     def init_obj(self, name, module, *args, **kwargs):
         """
@@ -121,6 +145,11 @@ class ConfigParser:
     def __getitem__(self, name):
         """Access items like ordinary dict."""
         return self.config[name]
+
+    def get(self, key, default=None):
+        """Get items with optional default."""
+        return self.config.get(key, default)
+
 
     def get_logger(self, name, verbosity=2):
         msg_verbosity = 'verbosity option {} is invalid. Valid options are {}.'.format(verbosity, self.log_levels.keys())

@@ -19,13 +19,40 @@ class Landsat8TrainDataLoader(BaseDataLoader):
     """
 
     def __init__(self, data_dir, data_split_lists_path, batch_size, model_input_size, bands, num_classes, one_hot,
-                 train_split=0.8, mode='train', num_workers=0):
+                 train_split=0.8, mode='train', num_workers=0,
+                 split_manifest=None, split_manifest_sha256=None,
+                 normalization_path=None, normalization_sha256=None, input_clip=10.0):
 
         assert mode in (
             'train', 'val', 'test'), "Invalid value for train/val/test mode"
 
         # generated pickle data path
         self.data_dir = data_dir
+
+        if split_manifest is not None or split_manifest_sha256 is not None:
+            from utils.training_protocol import load_manifest, load_normalization, source_path
+            manifest = load_manifest(split_manifest, split_manifest_sha256, data_dir, model_input_size)
+            split = manifest['splits'][mode]
+            paths = [str(source_path(data_dir, file_id)) for file_id in split['file_ids']]
+            samples = [(paths[index], row, col) for index, row, col in split['samples']]
+            normalization = load_normalization(normalization_path, normalization_sha256,
+                                               split_manifest_sha256, bands)
+            self.dataset = BaseTrainDataset(
+                paths, None, 8 if mode == 'train' else model_input_size,
+                model_input_size, bands, num_classes, one_hot,
+                mode='train' if mode == 'train' else 'test',
+                transforms=transforms.ToTensor(), frozen_samples=samples,
+                normalization=normalization, input_clip=input_clip)
+            super().__init__(self.dataset, batch_size, mode == 'train', num_workers)
+            return
+
+        # Read-only compatibility for historical evaluation. Training entry
+        # points require v3 above; missing maps must never generate new splits.
+        if normalization_path is not None or normalization_sha256 is not None:
+            raise ValueError('Normalization requires a pinned split manifest')
+        data_map_path = os.path.join(data_split_lists_path, f'{mode}_datamap.pkl')
+        if not os.path.isfile(data_map_path):
+            raise FileNotFoundError('No frozen split manifest or historical data map; refusing to create a random split')
 
         if not os.path.exists(data_split_lists_path):
             print('LOG: No saved data found. Making new data directory {}'.format(

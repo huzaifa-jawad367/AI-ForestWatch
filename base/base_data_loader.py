@@ -22,13 +22,18 @@ class BaseDataLoader(DataLoader):
 
         self.sampler, self.valid_sampler, self.test_sampler = self._split_sampler(self.train_split)
 
+        import torch
         self.init_kwargs = {
             'dataset': dataset,
             'batch_size': batch_size,
             'shuffle': self.shuffle,
             'collate_fn': collate_fn,
-            'num_workers': num_workers
+            'num_workers': num_workers,
+            'pin_memory': torch.cuda.is_available(),
+            'persistent_workers': (num_workers > 0)
         }
+
+
         super().__init__(sampler=self.sampler, **self.init_kwargs)
 
     def _split_sampler(self, split):

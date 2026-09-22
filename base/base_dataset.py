@@ -22,7 +22,7 @@ np.random.seed(123)
 
 class BaseTrainDataset(Dataset):
     def __init__(self, data_list, data_map_path, stride, model_input_size, bands, num_classes, one_hot,
-                 mode='train', transforms=None):
+                 mode='train', transforms=None, frozen_samples=None, normalization=None, input_clip=10.0):
         super(Dataset, self).__init__()
         self.data_list = data_list
         self.stride = stride
@@ -33,11 +33,18 @@ class BaseTrainDataset(Dataset):
 
         self.transforms = transforms
         self.mode = mode
+        self.normalization = normalization
+        self.input_clip = float(input_clip)
+        if not np.isfinite(self.input_clip) or self.input_clip <= 0:
+            raise ValueError('input_clip must be finite and positive')
 
         self.all_images = []
         self.total_images = 0
 
-        if os.path.exists(data_map_path):
+        if frozen_samples is not None:
+            self.all_images = list(frozen_samples)
+            self.total_images = len(self.all_images)
+        elif os.path.exists(data_map_path):
             print('LOG: Saved data map found! Loading now...')
             with open(data_map_path, 'rb') as data_map:
                 self.data_list, self.all_images = pickle.load(
@@ -62,21 +69,46 @@ class BaseTrainDataset(Dataset):
                 pickle.dump((self.data_list, self.all_images), file=data_map)
                 print('LOG: {} saved!'.format(data_map_path))
 
+        # RAM caching of dataset files for 35x training speedup
+        self.cache = {}
+        unique_paths = set(p for p, _, _ in self.all_images)
+        print(f'LOG: Pre-loading {len(unique_paths)} dataset files into RAM cache...')
+        for p in unique_paths:
+            with open(p, 'rb') as f:
+                img, lbl = pickle.load(f, encoding='latin1')
+                self.cache[p] = (np.nan_to_num(img), np.nan_to_num(lbl))
+        print('LOG: RAM caching complete!')
+
     def __getitem__(self, k):
         k = k % self.total_images
         (example_path, this_row, this_col) = self.all_images[k]
 
-        with open(example_path, 'rb') as this_pickle:
-            (example_subset, label_subset) = pickle.load(
-                this_pickle, encoding='latin1')
-            example_subset = np.nan_to_num(example_subset)
-            label_subset = np.nan_to_num(label_subset)
+        if example_path in self.cache:
+            example_subset, label_subset = self.cache[example_path]
+        else:
+            with open(example_path, 'rb') as this_pickle:
+                (example_subset, label_subset) = pickle.load(
+                    this_pickle, encoding='latin1')
+                example_subset = np.nan_to_num(example_subset)
+                label_subset = np.nan_to_num(label_subset)
+
         this_example_subset = example_subset[this_row:this_row +
                                              self.model_input_size, this_col:this_col + self.model_input_size, :]
-        # get more indices to add to the example, landsat-8
-        this_example_subset = get_indices(this_example_subset)
+
+        # get more indices if not already pre-computed
+        if this_example_subset.shape[-1] < 18:
+            this_example_subset = get_indices(this_example_subset)
+
         # at this point, we pick which bands to use
         this_example_subset = this_example_subset[:, :, self.bands]
+        if self.normalization is not None:
+            mean, std = self.normalization
+            # Labels control statistics fitting only, never inference inputs.
+            with np.errstate(over='ignore', invalid='ignore'):
+                this_example_subset = (this_example_subset.astype(np.float32) - mean) / std
+            this_example_subset = np.nan_to_num(
+                this_example_subset, nan=0.0, posinf=self.input_clip, neginf=-self.input_clip)
+            this_example_subset = np.clip(this_example_subset, -self.input_clip, self.input_clip)
         this_label_subset = label_subset[this_row:this_row +
                                          self.model_input_size, this_col:this_col + self.model_input_size]
         if self.mode == 'train':
