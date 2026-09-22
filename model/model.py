@@ -18,73 +18,76 @@ from torchvision import models
 # -----------------------------
 # Import model variants
 # -----------------------------
-from .models.unet import UNet as UNetModel, UNet3Plus as UNet3PlusModel
-from .models.unet_se_vgg import UNetSE as UNetSEModel
-from .models.unet_se_resnet import UNetSE_resnet as UNetSEResnetModel
-from .models.unet3plus_se import UNet3PlusSE as UNet3PlusSEModel
-from .models.unet_mff import UNetMFF as UNetMFFModel
-from .models.unet3plus_mff import UNet3PlusMFF as UNet3PlusMFFModel
+from .models.unet import UNet as UNetModel
+from .models.unet_mff_se import UNetMFFSE as UNetMFFSEModel
+from .models.unet3plus import UNet3Plus as UNet3PlusModel
 from .models.segformer import CustomSegformer as CustomSegformerModel
-from .models.unet3plus_mff_se import UNet3PlusMFFSE as UNet3PlusMFFSEModel
-
 
 # -----------------------------
 # Factory functions
 # -----------------------------
-def UNet(input_channels, num_classes, topology="ENC_4_DEC_4"):
-    return UNetModel(topology=topology, input_channels=input_channels, num_classes=num_classes)
-
-
-def UNet3Plus(input_channels, num_classes):
-    return UNet3PlusModel(input_channels=input_channels, num_classes=num_classes)
-
-
-def UNet3PlusMFF(input_channels, num_classes, use_mff=True):
-    return UNet3PlusMFFModel(input_channels=input_channels, num_classes=num_classes, use_mff=use_mff)
-
-
-def UNetSE(input_channels, num_classes, topology="ENC_4_DEC_4",
-           se_reduction=16, se_flags=None):
-    return UNetSEModel(topology=topology, input_channels=input_channels,
-                       num_classes=num_classes, se_reduction=se_reduction,
-                       se_flags=se_flags)
-
-
-def UNet3PlusSE(input_channels, num_classes,
-                se_reduction=16, se_flags=None):
-    """
-    Factory for UNet3PlusSE model (SE-enhanced UNet 3+)
-    """
-    return UNet3PlusSEModel(
+def UNet(input_channels, num_classes, topology="ENC_4_DEC_4",
+         input_mean=None, input_std=None, input_clip=10.0):
+    return UNetModel(
+        topology=topology,
         input_channels=input_channels,
         num_classes=num_classes,
-        se_reduction=se_reduction,
-        se_flags=se_flags
+        use_mff=False,
+        use_se=False,
+        input_mean=input_mean,
+        input_std=input_std,
+        input_clip=input_clip,
     )
 
+def UNet3Plus(input_channels, num_classes):
+    return UNet3PlusModel(input_channels=input_channels, num_classes=num_classes, use_mff=False, use_se=False)
+
+def UNet3PlusMFF(input_channels, num_classes, use_mff=True):
+    return UNet3PlusModel(input_channels=input_channels, num_classes=num_classes, use_mff=use_mff, use_se=False)
+
+def UNetSE(input_channels, num_classes, topology="ENC_4_DEC_4", se_reduction=16, se_flags=None):
+    return UNetModel(topology=topology, input_channels=input_channels, num_classes=num_classes, use_mff=False, use_se=True, se_reduction=se_reduction, se_flags=se_flags)
+
+def UNet3PlusSE(input_channels, num_classes, se_reduction=16, se_flags=None):
+    return UNet3PlusModel(input_channels=input_channels, num_classes=num_classes, use_mff=False, use_se=True, se_reduction=se_reduction, se_flags=se_flags)
 
 def UNetMFF(input_channels, num_classes, topology="ENC_4_DEC_4"):
-    return UNetMFFModel(topology=topology, input_channels=input_channels, num_classes=num_classes)
+    return UNetModel(topology=topology, input_channels=input_channels, num_classes=num_classes, use_mff=True, use_se=False)
 
+def UNetMFF_Legacy(input_channels, num_classes, topology="ENC_4_DEC_4"):
+    print("Warning: Building UNetMFF_Legacy with legacy MFF skip channels (64, 128, 256, 512).")
+    return UNetModel(topology=topology, input_channels=input_channels, num_classes=num_classes, use_mff=True, use_se=False, legacy_mff=True)
 
 def UNetSEResnet(input_channels, num_classes, se_reduction=16, se_flags=None):
-    return UNetSEResnetModel(input_channels=input_channels, num_classes=num_classes,
-                             se_reduction=se_reduction, se_flags=se_flags)
+    raise NotImplementedError("UNetSEResnet was removed. Please use UNetSE with appropriate backbone logic if needed.")
 
+def CustomSegformer(input_channels, num_classes, base_model='nvidia/mit-b0',
+                    input_mean=None, input_std=None, input_clip=10.0):
+    return CustomSegformerModel(
+        input_channels=input_channels,
+        num_classes=num_classes,
+        base_model=base_model,
+        input_mean=input_mean,
+        input_std=input_std,
+        input_clip=input_clip,
+    )
 
-def CustomSegformer(input_channels, num_classes, base_model='nvidia/mit-b0'):
-    return CustomSegformerModel(input_channels=input_channels, num_classes=num_classes,
-                                base_model=base_model)
+def UNet3PlusMFFSE(input_channels, num_classes, se_reduction=16, se_flags=None, use_mff=True):
+    return UNet3PlusModel(input_channels=input_channels, num_classes=num_classes, use_mff=use_mff, use_se=True, se_reduction=se_reduction, se_flags=se_flags)
 
-
-def UNet3PlusMFFSE(input_channels, num_classes,
-                   se_reduction=16, se_flags=None, use_mff=True):
-    return UNet3PlusMFFSEModel(
+def UNetMFFSE(input_channels, num_classes, topology="ENC_4_DEC_4", se_reduction=16,
+              se_flags=None, input_mean=None, input_std=None, input_clip=10.0,
+              dropout_p=None):
+    return UNetMFFSEModel(
+        topology=topology,
         input_channels=input_channels,
         num_classes=num_classes,
         se_reduction=se_reduction,
         se_flags=se_flags,
-        use_mff=use_mff
+        input_mean=input_mean,
+        input_std=input_std,
+        input_clip=input_clip,
+        dropout_p=dropout_p,
     )
 
 
@@ -118,7 +121,7 @@ def check_model(model_type="UNet",
                        num_classes=num_classes,
                        se_reduction=se_reduction, se_flags=se_flags)
 
-    elif model_type == "UNet3PlusSE":           # <-- ADDED HERE
+    elif model_type == "UNet3PlusSE":
         model = UNet3PlusSE(input_channels=input_channels,
                              num_classes=num_classes,
                              se_reduction=se_reduction,
@@ -144,6 +147,13 @@ def check_model(model_type="UNet",
                                num_classes=num_classes,
                                se_reduction=se_reduction,
                                se_flags=se_flags)
+
+    elif model_type == "UNetMFFSE":
+        model = UNetMFFSE(topology=topology,
+                          input_channels=input_channels,
+                          num_classes=num_classes,
+                          se_reduction=se_reduction,
+                          se_flags=se_flags)
     else:
         raise ValueError(f"Unknown model type: {model_type}")
 
@@ -233,8 +243,8 @@ if __name__ == '__main__':
             input_channels=INPUT_CHANNELS,
             num_classes=NUM_CLASSES
         ))
-    except FileNotFoundError as e:
-        print(f"\n  [SKIPPED] UNetSEResnet — MoCo checkpoint not found: {e}\n")
+    except NotImplementedError as e:
+        print(f"\n  [SKIPPED] UNetSEResnet — {e}\n")
 
     # ---------- 6. CustomSegformer ----------
     try:
@@ -245,3 +255,10 @@ if __name__ == '__main__':
         ))
     except Exception as e:
         print(f"\n  [SKIPPED] CustomSegformer — {e}\n")
+
+    # ---------- 7. UNetMFFSE ----------
+    _test_model("UNetMFFSE", UNetMFFSE(
+        input_channels=INPUT_CHANNELS,
+        num_classes=NUM_CLASSES,
+        topology="ENC_4_DEC_4"
+    ))

@@ -2,31 +2,28 @@
     Model package - exports all available models
 """
 
-from .models.unet import UNet, UNet_down_block, UNet_up_block
-from .models.se_blocks import UNetSE_down_block, UNetSE_up_block
-from .models.unet_se_vgg import UNetSE
-from .models.unet_se_resnet import UNetSE_resnet
-from .models.unet3plus_se import UNet3PlusSE
-from .models.unet_mff import UNetMFF, MFFBlock
-from .models.unet3plus_mff import UNet3PlusMFF
-from .models.segformer import CustomSegformer
-from .models.unet3plus_mff_se import UNet3PlusMFFSE
-from .model import check_model
+from .model import (
+    UNet,
+    UNet3Plus,
+    UNetSE,
+    UNet3PlusSE,
+    UNetMFF,
+    UNet3PlusMFF,
+    UNetMFFSE,
+    UNet3PlusMFFSE,
+    CustomSegformer,
+    check_model
+)
 
 __all__ = [
     'UNet',
     'UNet3Plus',
-    'UNet_down_block', 
-    'UNet_up_block',
     'UNetSE',
-    'UNetSE_down_block',
-    'UNetSE_up_block',
-    'UNetSE_resnet',
+    'UNet3PlusSE',
     'UNetMFF',
     'UNet3PlusMFF',
-    'MFFBlock',
-    'UNet3PlusSE',
-    'CustomSegformer',
+    'UNetMFFSE',
     'UNet3PlusMFFSE',
+    'CustomSegformer',
     'check_model'
 ]
