@@ -39,6 +39,11 @@ class Trainer(BaseTrainer):
                  data_loader, valid_data_loader=None, test_data_loader=None,
                  lr_scheduler=None, len_epoch=None):
         self.lr_scheduler = lr_scheduler
+        self.lr_scheduler_interval = config.get('lr_scheduler', {}).get(
+            'interval', 'epoch'
+        )
+        if self.lr_scheduler_interval not in {'epoch', 'step'}:
+            raise ValueError("lr_scheduler.interval must be 'epoch' or 'step'")
         self.device = device
         self.precision = resolve_precision(config['trainer'], device)
         self.use_amp = self.precision.use_autocast
@@ -126,6 +131,7 @@ class Trainer(BaseTrainer):
         self.train_metrics.reset()
         epoch_started = time.perf_counter()
         skipped_optimizer_steps = 0
+        optimizer_steps = 0
         all_ignored_batches = 0
         labelled_pixels = 0
         ignored_pixels = 0
@@ -187,10 +193,19 @@ class Trainer(BaseTrainer):
                 self.scaler.update()
                 if self.scaler.get_scale() < scale_before:
                     skipped_optimizer_steps += 1
+                else:
+                    optimizer_steps += 1
+                    if (self.lr_scheduler is not None
+                            and self.lr_scheduler_interval == 'step'):
+                        self.lr_scheduler.step()
             else:
                 loss.backward()
                 clip_grad_norm_(self.model.parameters(), 0.05, error_if_nonfinite=True)
                 self.optimizer.step()
+                optimizer_steps += 1
+                if (self.lr_scheduler is not None
+                        and self.lr_scheduler_interval == 'step'):
+                    self.lr_scheduler.step()
 
             if supervised_count > 0:
                 metric_weight = supervised_count if self.mask_unknown_labels else 1
@@ -230,6 +245,7 @@ class Trainer(BaseTrainer):
         log['labelled_pixels'] = labelled_pixels
         log['ignored_pixels'] = ignored_pixels
         log['all_ignored_batches'] = all_ignored_batches
+        log['optimizer_steps'] = optimizer_steps
         if self.scaler is not None:
             log['amp_skipped_steps'] = skipped_optimizer_steps
             log['grad_scaler_scale'] = float(self.scaler.get_scale())
@@ -248,7 +264,8 @@ class Trainer(BaseTrainer):
         for key, value in log.items():
             self._write_to_log(f"    {key:15s}: {value}")
 
-        if self.lr_scheduler is not None:
+        if (self.lr_scheduler is not None
+                and self.lr_scheduler_interval == 'epoch'):
             self.lr_scheduler.step()
         return log
 

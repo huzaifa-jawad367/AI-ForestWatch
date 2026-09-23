@@ -17,7 +17,7 @@ import model.metric as module_metric
 import model.model as module_arch
 from parse_config import ConfigParser
 from trainer import Trainer
-from utils import prepare_device, resolve_precision
+from utils import WarmupPolynomialLR, prepare_device, resolve_precision
 
 
 # fix random seeds for reproducibility
@@ -139,7 +139,25 @@ def main(config):
     optimizer = config.init_obj('optimizer', torch.optim, trainable_params)
     logger.info("Using standard (non-fused) optimizer for reproducibility.")
 
-    lr_scheduler = config.init_obj('lr_scheduler', torch.optim.lr_scheduler, optimizer)
+    scheduler_config = config['lr_scheduler']
+    if scheduler_config['type'] == 'WarmupPolynomialLR':
+        total_steps = config['trainer']['epochs'] * len(train_data_loader)
+        lr_scheduler = WarmupPolynomialLR(
+            optimizer,
+            total_steps=total_steps,
+            **scheduler_config['args'],
+        )
+        logger.info(
+            "Using optimizer-step LR schedule: total_steps=%s, "
+            "warmup_steps=%s, power=%s",
+            lr_scheduler.total_steps,
+            lr_scheduler.warmup_steps,
+            lr_scheduler.power,
+        )
+    else:
+        lr_scheduler = config.init_obj(
+            'lr_scheduler', torch.optim.lr_scheduler, optimizer
+        )
 
 
     trainer = Trainer(model, criterion, metrics, optimizer,
@@ -163,6 +181,13 @@ def main(config):
     trainer._write_to_log(f"Model architecture: {type(model).__name__}")
     trainer._write_to_log(f"Optimizer: {config['optimizer']['type']}")
     trainer._write_to_log(f"Learning rate: {config['optimizer']['args']['lr']}")
+    trainer._write_to_log(
+        f"LR scheduler interval: {config['lr_scheduler'].get('interval', 'epoch')}"
+    )
+    if isinstance(lr_scheduler, WarmupPolynomialLR):
+        trainer._write_to_log(f"LR total optimizer steps: {lr_scheduler.total_steps}")
+        trainer._write_to_log(f"LR warmup steps: {lr_scheduler.warmup_steps}")
+        trainer._write_to_log(f"LR polynomial power: {lr_scheduler.power}")
     trainer._write_to_log(f"Epochs: {config['trainer']['epochs']}")
     trainer._write_to_log(f"Seed: {seed}")
     trainer._write_to_log(f"Initial state path: {initial_state_path}")

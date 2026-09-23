@@ -62,11 +62,13 @@ def UNetSEResnet(input_channels, num_classes, se_reduction=16, se_flags=None):
     raise NotImplementedError("UNetSEResnet was removed. Please use UNetSE with appropriate backbone logic if needed.")
 
 def CustomSegformer(input_channels, num_classes, base_model='nvidia/mit-b0',
-                    input_mean=None, input_std=None, input_clip=10.0):
+                    encoder_pretrained=True, input_mean=None, input_std=None,
+                    input_clip=10.0):
     return CustomSegformerModel(
         input_channels=input_channels,
         num_classes=num_classes,
         base_model=base_model,
+        encoder_pretrained=encoder_pretrained,
         input_mean=input_mean,
         input_std=input_std,
         input_clip=input_clip,

@@ -12,7 +12,8 @@ class CustomSegformer(nn.Module):
     loss_uses_logits = True
 
     def __init__(self, input_channels, num_classes, base_model='nvidia/mit-b3',
-                 input_mean=None, input_std=None, input_clip=10.0):
+                 encoder_pretrained=True, input_mean=None, input_std=None,
+                 input_clip=10.0):
         super().__init__()
         if (input_mean is None) != (input_std is None):
             raise ValueError("input_mean and input_std must be provided together")
@@ -37,7 +38,18 @@ class CustomSegformer(nn.Module):
         config = SegformerConfig.from_pretrained(base_model)
         config.num_labels = num_classes
         config.num_channels = input_channels
-        self.encoder = SegformerModel(config)
+        if encoder_pretrained:
+            # Load ImageNet MiT encoder weights. For multispectral inputs the
+            # incompatible first projection is reinitialized while compatible
+            # encoder layers retain their pretrained weights.
+            self.encoder = SegformerModel.from_pretrained(
+                base_model,
+                config=config,
+                ignore_mismatched_sizes=True,
+            )
+        else:
+            self.encoder = SegformerModel(config)
+        # The task-specific semantic-segmentation decoder starts from scratch.
         self.decoder = SegformerDecodeHead(config)
         self.softmax = nn.Softmax(dim=1)
 

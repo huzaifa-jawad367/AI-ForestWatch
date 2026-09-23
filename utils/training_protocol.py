@@ -129,6 +129,35 @@ def validate_training_config(config, verify_content=True):
         raise ValueError('v3 retains input_clip=10.0')
     if len(args['bands']) != config['arch']['args']['input_channels']:
         raise ValueError('Input channel count does not match selected bands')
+    if config['arch']['type'] == 'CustomSegformer':
+        optimizer = config['optimizer']
+        optimizer_args = optimizer.get('args', {})
+        scheduler = config['lr_scheduler']
+        scheduler_args = scheduler.get('args', {})
+        if (optimizer.get('type') != 'AdamW'
+                or optimizer_args.get('lr') != 6e-5
+                or tuple(optimizer_args.get('betas', ())) != (0.9, 0.999)
+                or optimizer_args.get('weight_decay') != 0.01):
+            raise ValueError(
+                'CustomSegformer requires AdamW(lr=6e-5, betas=(0.9, 0.999), '
+                'weight_decay=0.01)'
+            )
+        if (scheduler.get('type') != 'WarmupPolynomialLR'
+                or scheduler.get('interval') != 'step'
+                or scheduler_args.get('warmup_ratio') != 0.05
+                or scheduler_args.get('power') != 1.0):
+            raise ValueError(
+                'CustomSegformer requires step-based polynomial decay '
+                '(power=1.0) with 5% linear warmup'
+            )
+        if (args.get('batch_size') != 32 or trainer.get('epochs') != 60
+                or config.get('loss') != 'focal_loss2d'
+                or config['arch']['args'].get('encoder_pretrained') is not True
+                or not config['arch']['args'].get('base_model', '').startswith('nvidia/mit-')):
+            raise ValueError(
+                'CustomSegformer requires pretrained MiT, batch_size=32, '
+                'focal_loss2d and max epochs=60'
+            )
     manifest = load_manifest(args.get('split_manifest'), args.get('split_manifest_sha256'),
                              args['data_dir'], args['model_input_size'], verify_content)
     load_normalization(args.get('normalization_path'), args.get('normalization_sha256'),

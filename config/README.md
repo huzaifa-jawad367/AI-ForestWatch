@@ -29,5 +29,12 @@ Protocol-v3 training monitors validation loss and stops after 10 consecutive
 epochs without improvement. The non-improvement counter is checkpointed so a
 resumed run preserves the same patience window as uninterrupted training.
 
+Custom SegFormer uses a pretrained MiT encoder and randomly initialized
+decoder, AdamW (`lr=6e-5`, `betas=(0.9, 0.999)`, `weight_decay=0.01`), and a
+step-based linear-warmup/polynomial-decay schedule. Warmup is calculated as 5%
+of the maximum optimizer steps (`epochs * batches_per_epoch`) rather than a
+fixed step count. Its data, augmentation, focal loss, masking, early stopping,
+and best-checkpoint rules remain shared with the UNet protocol.
+
 Historical, AMP, normalization-benchmark, reproduction and obsolete root
 configs are archived outside the repository and are not runtime dependencies.
