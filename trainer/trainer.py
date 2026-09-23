@@ -448,6 +448,7 @@ class Trainer(BaseTrainer):
             'rng_state': self._capture_rng_state(),
             'rng_state_version': 1,
             'precision': self.precision.mode,
+            'early_stop_not_improved': getattr(self, 'not_improved_count', 0),
         }
 
         if self.scaler is not None:
@@ -507,6 +508,9 @@ class Trainer(BaseTrainer):
                 )
             self.start_epoch = checkpoint['epoch'] + 1
             self.mnt_best = checkpoint['monitor_best']
+            self.not_improved_count = int(
+                checkpoint.get('early_stop_not_improved', 0)
+            )
             # load architecture params from checkpoint.
             if checkpoint['config']['arch'] != self.config['arch']:
                 self.logger.warning("Warning: Architecture configuration given in config file is different from that of "

@@ -25,5 +25,9 @@ TensorBoard is always enabled by the trainer and writes into each run's
 `tensorboard_logs/` directory. The obsolete `trainer.tensorboard: false` field
 was removed because it never controlled the writer.
 
+Protocol-v3 training monitors validation loss and stops after 10 consecutive
+epochs without improvement. The non-improvement counter is checkpointed so a
+resumed run preserves the same patience window as uninterrupted training.
+
 Historical, AMP, normalization-benchmark, reproduction and obsolete root
 configs are archived outside the repository and are not runtime dependencies.

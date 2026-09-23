@@ -119,8 +119,10 @@ def validate_training_config(config, verify_content=True):
     if (trainer.get('amp') is not False or trainer.get('precision', 'fp32') != 'fp32'
             or trainer.get('mask_unknown_labels') is not True
             or trainer.get('monitor') != 'min val_loss'
+            or trainer.get('early_stop') != 10
             or trainer.get('unknown_label', 0) != 0 or trainer.get('ignore_index', -100) != -100):
-        raise ValueError('v3 requires strict FP32, unknown masking and min val_loss monitoring')
+        raise ValueError('v3 requires strict FP32, unknown masking, min val_loss monitoring, '
+                         'and early-stopping patience=10')
     if any(config['arch']['args'].get(k) is not None for k in ('input_mean', 'input_std')):
         raise ValueError('v3 normalizes in the shared data pipeline; remove architecture normalization')
     if args.get('input_clip') != 10.0:
@@ -148,6 +150,7 @@ def assert_resume_compatible(config, previous):
             args.pop(key, None)  # local paths may change; pinned content may not
     if current_args != old_args:
         raise ValueError('Resume data/preprocessing configuration mismatch')
-    for key in ('amp', 'precision', 'mask_unknown_labels', 'unknown_label', 'ignore_index', 'monitor', 'epochs'):
+    for key in ('amp', 'precision', 'mask_unknown_labels', 'unknown_label', 'ignore_index',
+                'monitor', 'early_stop', 'epochs'):
         if config['trainer'].get(key) != previous['trainer'].get(key):
             raise ValueError(f'Resume trainer configuration mismatch: {key}')

@@ -31,6 +31,8 @@ class BaseTrainer:
         self.epochs = cfg_trainer['epochs']
         self.save_period = cfg_trainer['save_period']
         self.monitor = cfg_trainer.get('monitor', 'off')
+        self.not_improved_count = 0
+        self.early_stop = inf
 
         # configuration to monitor model performance and save best
         if self.monitor == 'off':
@@ -41,7 +43,7 @@ class BaseTrainer:
             assert self.mnt_mode in ['min', 'max']
 
             self.mnt_best = inf if self.mnt_mode == 'min' else -inf
-            self.early_stop = cfg_trainer.get('early_stop', inf)
+            self.early_stop = cfg_trainer.get('early_stop', 10)
             if self.early_stop <= 0:
                 self.early_stop = inf
 
@@ -69,7 +71,6 @@ class BaseTrainer:
         """
         Full training logic
         """
-        not_improved_count = 0
         last_epoch = self.start_epoch - 1
         for epoch in range(self.start_epoch, self.epochs + 1):
             result = self._train_epoch(epoch)
@@ -97,14 +98,14 @@ class BaseTrainer:
 
                 if improved:
                     self.mnt_best = log[self.mnt_metric]
-                    not_improved_count = 0
+                    self.not_improved_count = 0
                     best = True
                     if hasattr(self, '_write_to_log'):
                         self._write_to_log(f"  >> New best model! {self.mnt_metric}: {self.mnt_best}")
                 else:
-                    not_improved_count += 1
+                    self.not_improved_count += 1
 
-                if not_improved_count > self.early_stop:
+                if self.not_improved_count >= self.early_stop:
                     self.logger.info("Validation performance didn\'t improve for {} epochs. "
                                      "Training stops.".format(self.early_stop))
                     if hasattr(self, '_write_to_log'):
@@ -144,6 +145,7 @@ class BaseTrainer:
             'config': self.config,
             'rng_state': self._capture_rng_state(),
             'rng_state_version': 1,
+            'early_stop_not_improved': getattr(self, 'not_improved_count', 0),
         }
         
         if is_last:
@@ -234,6 +236,9 @@ class BaseTrainer:
         else:
             self.start_epoch = checkpoint['epoch'] + 1
             self.mnt_best = checkpoint['monitor_best']
+            self.not_improved_count = int(
+                checkpoint.get('early_stop_not_improved', 0)
+            )
             # load architecture params from checkpoint.
             if checkpoint['config']['arch'] != self.config['arch']:
                 self.logger.warning("Warning: Architecture configuration given in config file is different from that of "
