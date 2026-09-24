@@ -52,6 +52,11 @@ class Trainer(BaseTrainer):
         super().__init__(model, criterion, metric_ftns, optimizer, config)
         self.config = config
         trainer_config = config['trainer']
+        self.grad_clip_max_norm = float(
+            trainer_config.get('grad_clip_max_norm', 0.5)
+        )
+        if not np.isfinite(self.grad_clip_max_norm) or self.grad_clip_max_norm <= 0:
+            raise ValueError('trainer.grad_clip_max_norm must be finite and positive')
         self.mask_unknown_labels = bool(
             trainer_config.get('mask_unknown_labels', False)
         )
@@ -188,7 +193,7 @@ class Trainer(BaseTrainer):
                 scale_before = self.scaler.get_scale()
                 self.scaler.scale(loss).backward()
                 self.scaler.unscale_(self.optimizer)
-                clip_grad_norm_(self.model.parameters(), 0.05)
+                clip_grad_norm_(self.model.parameters(), self.grad_clip_max_norm)
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
                 if self.scaler.get_scale() < scale_before:
@@ -200,7 +205,11 @@ class Trainer(BaseTrainer):
                         self.lr_scheduler.step()
             else:
                 loss.backward()
-                clip_grad_norm_(self.model.parameters(), 0.05, error_if_nonfinite=True)
+                clip_grad_norm_(
+                    self.model.parameters(),
+                    self.grad_clip_max_norm,
+                    error_if_nonfinite=True,
+                )
                 self.optimizer.step()
                 optimizer_steps += 1
                 if (self.lr_scheduler is not None

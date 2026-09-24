@@ -181,6 +181,7 @@ def main(config):
     trainer._write_to_log(f"Model architecture: {type(model).__name__}")
     trainer._write_to_log(f"Optimizer: {config['optimizer']['type']}")
     trainer._write_to_log(f"Learning rate: {config['optimizer']['args']['lr']}")
+    trainer._write_to_log(f"Gradient clipping max norm: {trainer.grad_clip_max_norm}")
     trainer._write_to_log(
         f"LR scheduler interval: {config['lr_scheduler'].get('interval', 'epoch')}"
     )

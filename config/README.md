@@ -28,6 +28,8 @@ was removed because it never controlled the writer.
 Protocol-v3 training monitors validation loss and stops after 10 consecutive
 epochs without improvement. The non-improvement counter is checkpointed so a
 resumed run preserves the same patience window as uninterrupted training.
+All protocol-v3 runs use gradient clipping with `max_norm=0.5`; the value is
+stored in each config and checked when resuming so it cannot drift silently.
 
 Custom SegFormer uses a pretrained MiT encoder and randomly initialized
 decoder, AdamW (`lr=6e-5`, `betas=(0.9, 0.999)`, `weight_decay=0.01`), and a
